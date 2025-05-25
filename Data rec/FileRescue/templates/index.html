@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FileRescue</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.min.js"></script>
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+    <style>
+        .progress-bar {
+            transition: width 0.3s ease;
+        }
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .sidebar {
+            transition: all 0.3s ease;
+        }
+        .main-content {
+            transition: margin-left 0.3s ease;
+        }
+        .auth-container {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .dropdown-menu {
+            transform: translateY(-10px);
+            opacity: 0;
+            transition: all 0.2s ease;
+            pointer-events: none;
+        }
+        .dropdown-menu.show {
+            transform: translateY(0);
+            opacity: 1;
+            pointer-events: auto;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans">
+    <!-- Authentication Modal -->
+    <div id="authModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-8 w-full max-w-md mx-4">
+            <div class="text-center mb-6">
+                <h1 class="text-2xl font-bold text-gray-800 mb-2">FileRescue</h1>
+                <p class="text-gray-600">Recover deleted files from the system</p>
+            </div>
+
+            <!-- Login Form -->
+            <div id="loginForm" class="space-y-4">
+                <h2 class="text-xl font-semibold text-center mb-4">Sign In</h2>
+                
+                <div id="loginError" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded"></div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <input type="email" id="loginEmail" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500" required>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                    <input type="password" id="loginPassword" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500" required>
+                </div>
+                
+                <button id="loginBtn" class="w-full bg-violet-600 hover:bg-violet-700 text-white py-2 px-4 rounded-md font-medium transition-colors">
+                    Sign In
+                </button>
+                
+                <p class="text-center text-sm text-gray-600">
+                    Don't have an account? 
+                    <button id="showSignup" class="text-violet-600 hover:text-violet-700 font-medium">Create Account</button>
+                </p>
+            </div>
+
+            <!-- Signup Form -->
+            <div id="signupForm" class="space-y-4 hidden">
+                <h2 class="text-xl font-semibold text-center mb-4">Create Account</h2>
+                
+                <div id="signupError" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded"></div>
+                <div id="signupSuccess" class="hidden bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded"></div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                    <input type="text" id="signupName" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500" required>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <input type="email" id="signupEmail" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500" required>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                    <input type="password" id="signupPassword" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500" required>
+                    <p class="text-xs text-gray-500 mt-1">Password must be at least 6 characters with at least one special character</p>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+                    <input type="password" id="confirmPassword" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500" required>
+                </div>
+                
+                <button id="signupBtn" class="w-full bg-violet-600 hover:bg-violet-700 text-white py-2 px-4 rounded-md font-medium transition-colors">
+                    Create Account
+                </button>
+                
+                <p class="text-center text-sm text-gray-600">
+                    Already have an account? 
+                    <button id="showLogin" class="text-violet-600 hover:text-violet-700 font-medium">Sign In</button>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Application -->
+    <div id="mainApp" class="flex h-screen overflow-hidden bg-white hidden">
+        <!-- Sidebar -->
+        <div class="sidebar bg-violet-900 text-white w-64 m-2 rounded-lg flex-shrink-0 flex flex-col">
+            <div class="p-4 border-b border-gray-700">
+                <h1 class="text-xl font-bold">FileRescue</h1>
+                <p class="text-gray-200 text-sm mt-1">Recover deleted files from the system</p>
+            </div>
+            
+            <div class="p-4 border-b border-gray-700">
+                <h2 class="text-lg font-semibold mb-2">How to Use</h2>
+                <ol class="text-gray-300 text-sm space-y-2 list-decimal list-inside">
+                    <li>Click "Start Scan" to begin</li>
+                    <li>View progress in real-time</li>
+                    <li>Results appear automatically</li>
+                    <li>Click thumbnails to enlarge</li>
+                </ol>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto p-2">
+                <h2 class="text-lg font-semibold mb-2">Scan Results</h2>
+                <div id="sidebarResults" class="text-sm space-y-3">
+                    <div class="text-gray-400 italic">No scan results yet</div>
+                </div>
+            </div>
+            
+            <div class="p-4 border-t text-center border-gray-700 text-xs text-gray-500">
+                <p class="text-white">Arjun & Gautham Team Project</p>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content flex-1 flex flex-col overflow-hidden">
+            <!-- Top Navigation -->
+            <header class="bg-white shadow-sm">
+                <div class="px-4 py-3 flex justify-between items-center">
+                    <h2 class="text-lg font-semibold text-gray-800">Dashboard</h2>
+                    <div class="flex items-center space-x-4">
+                        <button id="startScan" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors">
+                            Start Scan
+                        </button>
+                        <button id="stopScan" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors hidden">
+                            Stop Scan
+                        </button>
+                        
+                        <!-- User Dropdown -->
+                        <div class="relative">
+                            <button id="userDropdown" class="flex items-center space-x-2 text-gray-700 hover:text-gray-900 focus:outline-none">
+                                <div class="w-8 h-8 bg-violet-600 rounded-full flex items-center justify-center">
+                                    <span id="userInitials" class="text-white text-sm font-medium"></span>
+                                </div>
+                                <span id="userName" class="text-sm font-medium"></span>
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                </svg>
+                            </button>
+                            
+                            <div id="dropdownMenu" class="dropdown-menu absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-gray-200 py-1 z-10">
+                                <div class="px-4 py-2 text-sm text-gray-700 border-b border-gray-100">
+                                    <div class="font-medium" id="dropdownUserName"></div>
+                                    <div class="text-gray-500" id="dropdownUserEmail"></div>
+                                </div>
+                                <button id="logoutBtn" class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center space-x-2">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                                    </svg>
+                                    <span>Sign Out</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Main Content Area -->
+            <main class="flex-1 overflow-y-auto p-6 bg-white">
+                <!-- Scan Progress Section -->
+                <div class="bg-white rounded-lg p-6 mb-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">Scan Progress</h3>
+                    
+                    <div class="mb-6">
+                        <div class="flex justify-between mb-1">
+                            <span id="progressText" class="text-sm font-medium text-gray-700">Ready to start scanning</span>
+                            <span id="progressPercent" class="text-sm font-medium text-gray-700">0%</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2.5">
+                            <div id="progressBar" class="progress-bar bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <div id="currentFile" class="hidden p-3 bg-blue-50 rounded-lg">
+                        <div class="flex items-center space-x-3">
+                            <div class="animate-spin h-5 w-5 text-blue-600">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                            </div>
+                            <div>
+                                <p class="text-sm font-medium text-gray-700">Processing:</p>
+                                <p id="currentFileName" class="text-sm text-gray-600 font-mono truncate"></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Thumbnail Gallery Section -->
+                <div class="bg-white rounded-lg border p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-semibold text-gray-800">Extracted Thumbnails</h3>
+                        <span id="thumbCount" class="text-sm bg-gray-100 text-gray-800 px-2 py-1 rounded-full">0 images</span>
+                    </div>
+
+                    <div id="thumbGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                        <div id="noThumbsMessage" class="col-span-full text-center py-8 text-gray-500">
+                            No thumbnails extracted yet. Run a scan to begin.
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        // Authentication system
+        class AuthSystem {
+            constructor() {
+                this.users = JSON.parse(localStorage.getItem('filerescue_users') || '[]');
+                this.currentUser = JSON.parse(localStorage.getItem('filerescue_current_user') || 'null');
+                this.initEventListeners();
+                this.checkAuthStatus();
+            }
+
+            initEventListeners() {
+                // Form switching
+                document.getElementById('showSignup').addEventListener('click', () => this.showSignupForm());
+                document.getElementById('showLogin').addEventListener('click', () => this.showLoginForm());
+                
+                // Form submissions
+                document.getElementById('loginBtn').addEventListener('click', (e) => this.handleLogin(e));
+                document.getElementById('signupBtn').addEventListener('click', (e) => this.handleSignup(e));
+                
+                // Logout
+                document.getElementById('logoutBtn').addEventListener('click', () => this.logout());
+                
+                // User dropdown
+                document.getElementById('userDropdown').addEventListener('click', () => this.toggleDropdown());
+                
+                // Close dropdown when clicking outside
+                document.addEventListener('click', (e) => {
+                    if (!e.target.closest('#userDropdown') && !e.target.closest('#dropdownMenu')) {
+                        this.closeDropdown();
+                    }
+                });
+            }
+
+            validateEmail(email) {
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                return emailRegex.test(email);
+            }
+
+            validatePassword(password) {
+                // At least 6 characters with at least one special character
+                const hasMinLength = password.length >= 6;
+                const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+                return hasMinLength && hasSpecialChar;
+            }
+
+            showError(elementId, message) {
+                const errorElement = document.getElementById(elementId);
+                errorElement.textContent = message;
+                errorElement.classList.remove('hidden');
+                setTimeout(() => errorElement.classList.add('hidden'), 5000);
+            }
+
+            showSuccess(elementId, message) {
+                const successElement = document.getElementById(elementId);
+                successElement.textContent = message;
+                successElement.classList.remove('hidden');
+                setTimeout(() => successElement.classList.add('hidden'), 3000);
+            }
+
+            showSignupForm() {
+                document.getElementById('loginForm').classList.add('hidden');
+                document.getElementById('signupForm').classList.remove('hidden');
+                this.clearForms();
+            }
+
+            showLoginForm() {
+                document.getElementById('signupForm').classList.add('hidden');
+                document.getElementById('loginForm').classList.remove('hidden');
+                this.clearForms();
+            }
+
+            clearForms() {
+                // Clear all form inputs
+                document.querySelectorAll('input').forEach(input => input.value = '');
+                // Hide all error/success messages
+                document.querySelectorAll('[id$="Error"], [id$="Success"]').forEach(el => el.classList.add('hidden'));
+            }
+
+            handleSignup(e) {
+                e.preventDefault();
+                
+                const name = document.getElementById('signupName').value.trim();
+                const email = document.getElementById('signupEmail').value.trim();
+                const password = document.getElementById('signupPassword').value;
+                const confirmPassword = document.getElementById('confirmPassword').value;
+
+                // Validation
+                if (!name) {
+                    this.showError('signupError', 'Please enter your full name');
+                    return;
+                }
+
+                if (!this.validateEmail(email)) {
+                    this.showError('signupError', 'Please enter a valid email address');
+                    return;
+                }
+
+                if (!this.validatePassword(password)) {
+                    this.showError('signupError', 'Password must be at least 6 characters with at least one special character');
+                    return;
+                }
+
+                if (password !== confirmPassword) {
+                    this.showError('signupError', 'Passwords do not match');
+                    return;
+                }
+
+                // Check if user already exists
+                if (this.users.find(user => user.email === email)) {
+                    this.showError('signupError', 'An account with this email already exists');
+                    return;
+                }
+
+                // Create new user
+                const newUser = {
+                    id: Date.now(),
+                    name,
+                    email,
+                    password // In a real app, this would be hashed
+                };
+
+                this.users.push(newUser);
+                localStorage.setItem('filerescue_users', JSON.stringify(this.users));
+                
+                this.showSuccess('signupSuccess', 'Account created successfully! You can now sign in.');
+                
+                // Switch to login form after 2 seconds
+                setTimeout(() => {
+                    this.showLoginForm();
+                    document.getElementById('loginEmail').value = email;
+                }, 2000);
+            }
+
+            handleLogin(e) {
+                e.preventDefault();
+                
+                const email = document.getElementById('loginEmail').value.trim();
+                const password = document.getElementById('loginPassword').value;
+
+                if (!email || !password) {
+                    this.showError('loginError', 'Please enter both email and password');
+                    return;
+                }
+
+                // Find user
+                const user = this.users.find(u => u.email === email && u.password === password);
+                
+                if (!user) {
+                    this.showError('loginError', 'Invalid email or password');
+                    return;
+                }
+
+                // Set current user and show main app
+                this.currentUser = user;
+                localStorage.setItem('filerescue_current_user', JSON.stringify(user));
+                this.showMainApp();
+            }
+
+            logout() {
+                this.currentUser = null;
+                localStorage.removeItem('filerescue_current_user');
+                this.showAuthModal();
+                this.closeDropdown();
+            }
+
+            checkAuthStatus() {
+                if (this.currentUser) {
+                    this.showMainApp();
+                } else {
+                    this.showAuthModal();
+                }
+            }
+
+            showMainApp() {
+                document.getElementById('authModal').classList.add('hidden');
+                document.getElementById('mainApp').classList.remove('hidden');
+                
+                // Update user info in navbar
+                const initials = this.currentUser.name.split(' ').map(n => n[0]).join('').toUpperCase();
+                document.getElementById('userInitials').textContent = initials;
+                document.getElementById('userName').textContent = this.currentUser.name;
+                document.getElementById('dropdownUserName').textContent = this.currentUser.name;
+                document.getElementById('dropdownUserEmail').textContent = this.currentUser.email;
+            }
+
+            showAuthModal() {
+                document.getElementById('authModal').classList.remove('hidden');
+                document.getElementById('mainApp').classList.add('hidden');
+                this.showLoginForm();
+            }
+
+            toggleDropdown() {
+                const dropdown = document.getElementById('dropdownMenu');
+                dropdown.classList.toggle('show');
+            }
+
+            closeDropdown() {
+                document.getElementById('dropdownMenu').classList.remove('show');
+            }
+        }
+
+        // Initialize authentication system
+        const auth = new AuthSystem();
+
+        // Original FileRescue functionality
+        document.addEventListener('DOMContentLoaded', () => {
+            const socket = io();
+            const startBtn = document.getElementById('startScan');
+            const stopBtn = document.getElementById('stopScan');
+            const sidebarResults = document.getElementById('sidebarResults');
+
+            startBtn.addEventListener('click', () => {
+                // Reset UI
+                sidebarResults.innerHTML = '<div class="text-gray-400 italic">Scanning in progress...</div>';
+                document.getElementById('thumbGrid').innerHTML = `
+                    <div id="noThumbsMessage" class="col-span-full text-center py-8 text-gray-500">
+                        Scanning in progress...
+                    </div>
+                `;
+                document.getElementById('progressBar').style.width = '0%';
+                document.getElementById('progressPercent').textContent = '0%';
+
+                // Start scan
+                socket.emit('start_scan');
+                startBtn.disabled = true;
+                startBtn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+                startBtn.classList.add('bg-gray-400', 'cursor-not-allowed');
+                stopBtn.classList.remove('hidden');
+            });
+
+            stopBtn.addEventListener('click', () => {
+                socket.emit('stop_scan');
+                startBtn.disabled = false;
+                startBtn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+                startBtn.classList.remove('bg-gray-400', 'cursor-not-allowed');
+                stopBtn.classList.add('hidden');
+            });
+
+            socket.on('scan_progress', (data) => {
+                document.getElementById('progressText').textContent = data.message;
+                document.getElementById('progressPercent').textContent = `${data.progress}%`;
+                document.getElementById('progressBar').style.width = `${data.progress}%`;
+
+                if (data.current) {
+                    document.getElementById('currentFileName').textContent = data.current;
+                    document.getElementById('currentFile').classList.remove('hidden');
+                }
+            });
+
+            socket.on('file_processed', (data) => {
+                // Update sidebar results
+                const resultItem = document.createElement('div');
+                resultItem.className = 'bg-gray-700 rounded p-2 fade-in';
+                resultItem.innerHTML = `
+                    <div class="font-mono text-sm">${data.filename}</div>
+                    <div class="text-xs ${data.count > 0 ? 'text-green-400' : 'text-red-400'}">
+                        ${data.count > 0 ? `${data.count} thumbnails` : 'Image not found'}
+                    </div>
+                `;
+                sidebarResults.innerHTML = '<div class="text-gray-400 italic">Completed</div>';
+            
+                sidebarResults.prepend(resultItem);
+            });
+
+            socket.on('scan_complete', (data) => {
+                updateScanComplete(data, 'Scan completed!');
+            });
+
+            socket.on('scan_stopped', (data) => {
+                updateScanComplete(data, 'Scan stopped!');
+            });
+
+            function updateScanComplete(data, message) {
+                // Update progress
+                document.getElementById('progressText').textContent = message;
+                document.getElementById('progressPercent').textContent = `${data.progress}%`;
+                document.getElementById('progressBar').style.width = `${data.progress}%`;
+
+                // Hide current file spinner
+                document.getElementById('currentFile').classList.add('hidden');
+
+                // Reset buttons
+                startBtn.disabled = false;
+                startBtn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+                startBtn.classList.remove('bg-gray-400', 'cursor-not-allowed');
+                stopBtn.classList.add('hidden');
+
+                // Load thumbnails
+                fetch('/thumbs-list')
+                    .then(response => response.json())
+                    .then(thumbs => {
+                        const grid = document.getElementById('thumbGrid');
+                        if (thumbs.length === 0) {
+                            grid.innerHTML = `
+                                <div id="noThumbsMessage" class="col-span-full text-center py-8 text-gray-500">
+                                    No thumbnails found in cache files
+                                </div>
+                            `;
+                        } else {
+                            grid.innerHTML = '';
+                            document.getElementById('thumbCount').textContent = `${thumbs.length} images`;
+                           
+                            const summary = document.createElement('div');
+                            summary.className = 'bg-gray-700 rounded p-3 mt-3';
+                            summary.innerHTML = `
+                                <div class="font-semibold">Scan Summary</div>
+                                <div class="text-xs mt-1">Extracted Files: ${thumbs.length}</div>
+                            `;
+
+                            thumbs.forEach(thumb => {
+                                const thumbDiv = document.createElement('div');
+                                thumbDiv.className = 'bg-gray-100 rounded-lg overflow-hidden fade-in hover:shadow-md transition-shadow';
+                                thumbDiv.innerHTML = `
+                                    <img src="/thumbs/${thumb}" alt="Thumbnail"
+                                         class="w-full h-64 object-cover hover:opacity-90 transition-opacity cursor-pointer"
+                                         onclick="window.open('/thumbs/${thumb}', '_blank')">
+                                    <div class="p-2 text-xs text-gray-600 truncate">${thumb}</div>
+                                `;
+                                grid.appendChild(thumbDiv);
+                            });
+                        }
+                    });
+            }
+        });
+    </script>
+</body>
+</html>
