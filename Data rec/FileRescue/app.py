@@ -12,7 +12,7 @@ app.config['THUMBNAIL_FOLDER'] = 'static/thumbs'
 
 name = get_sys_username()
 if name:
-    app.config['THUMBCACHE_DIR'] = fr'C:\Users\{name}\AppData\Local\Microsoft\Windows\Explorer'
+    app.config['THUMBCACHE_DIR'] = fr'C:\Users\hp\AppData\Local\Microsoft\Windows\Explorer'
 else:
     raise ValueError("Username not found")
 socketio = SocketIO(app, async_mode='eventlet')
