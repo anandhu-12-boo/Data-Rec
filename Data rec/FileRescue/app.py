@@ -12,7 +12,8 @@ app.config['THUMBNAIL_FOLDER'] = 'static/thumbs'
 
 name = get_sys_username()
 if name:
-    app.config['THUMBCACHE_DIR'] = fr'C:\Users\hp\AppData\Local\Microsoft\Windows\Explorer'
+    app.config['THUMBCACHE_DIR'] = fr'C:\Users\{name}\AppData\Local\Microsoft\Windows\Explorer'
+
 else:
     raise ValueError("Username not found")
 socketio = SocketIO(app, async_mode='eventlet')
@@ -31,6 +32,7 @@ def background_scan():
     try:
         scan_active = True
         stop_event.clear()
+
         
         with app.app_context():
             # Delete existing thumbnails folder
@@ -149,9 +151,12 @@ def serve_thumb(filename):
 
 @app.route('/thumbs-list')
 def list_thumbs():
-    thumbs = sorted([f for f in os.listdir(app.config['THUMBNAIL_FOLDER']) 
-                   if f.lower().endswith(('.jpg', '.jpeg', '.png'))])
+    folder = app.config['THUMBNAIL_FOLDER']
+    if not os.path.exists(folder):
+        return jsonify([])
+    thumbs = sorted([f for f in os.listdir(folder) if f.lower().endswith(('.jpg', '.jpeg', '.png'))])
     return jsonify(thumbs)
+
 
 @socketio.on('start_scan', namespace='/')
 def handle_start_scan():
