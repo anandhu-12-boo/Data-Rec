@@ -1,186 +1,249 @@
+import os
+from pathlib import Path
 from flask import Flask, render_template, send_from_directory, jsonify
 from flask_socketio import SocketIO, emit
-import os
+import threading
 import time
-import shutil
-from thumbcache_parser import parse_thumbcache_file
-from threading import Lock, Event
-from utils import get_sys_username
+
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret!'
-app.config['THUMBNAIL_FOLDER'] = 'static/thumbs'
+app.config['THUMB_FOLDER'] = os.path.join('static', 'thumbs')
 
-name = get_sys_username()
-if name:
-    app.config['THUMBCACHE_DIR'] = fr'C:\Users\{name}\AppData\Local\Microsoft\Windows\Explorer'
+socketio = SocketIO(app, cors_allowed_origins="*")
 
-else:
-    raise ValueError("Username not found")
-socketio = SocketIO(app, async_mode='eventlet')
+os.makedirs(app.config['THUMB_FOLDER'], exist_ok=True)
 
-# Global variables for scan management
-thread = None
-thread_lock = Lock()
-stop_event = Event()
-scan_active = False
+scan_thread = None
+stop_event = threading.Event()
 
-def background_scan():
-    
-    """Background task that handles the scanning process with detailed console logging"""
-    global thread, scan_active
-    
+# Global scan statistics
+scan_stats = {
+    'total_files': 0,
+    'processed_files': 0,
+    'total_images': 0,
+    'current_file': '',
+    'current_file_images': 0
+}
+
+# ---------------------------
+# 1️⃣ Get Windows Username
+# ---------------------------
+def get_windows_username():
     try:
-        scan_active = True
-        stop_event.clear()
+        return os.getlogin()
+    except Exception:
+        return os.environ.get("USERNAME", "unknown")
 
-        
-        with app.app_context():
-            # Delete existing thumbnails folder
-            extracted_folder = app.config['THUMBNAIL_FOLDER']
-            if os.path.exists(extracted_folder):
-                try:
-                    shutil.rmtree(extracted_folder)
-                    print(f"🗑️ Deleted existing folder: {extracted_folder}")
-                except Exception as e:
-                    print(f"⚠️ Failed to delete {extracted_folder}: {e}")
+# ---------------------------
+# 2️⃣ Locate Thumbcache Files
+# ---------------------------
+def get_thumbcache_files():
+    username = get_windows_username()
+    explorer_path = Path(f"C:/Users/{username}/AppData/Local/Microsoft/Windows/Explorer")
+    if not explorer_path.exists():
+        raise FileNotFoundError("Explorer thumbnail cache folder not found.")
+    return list(explorer_path.glob("thumbcache_*.db"))
 
-            # Recreate the folder for fresh extraction
-            os.makedirs(extracted_folder, exist_ok=True)
+# ---------------------------
+# 3️⃣ Extract Thumbnails (with Progress)
+# ---------------------------
+def extract_thumbnails():
+    global scan_stats
+    dest_folder = Path(app.config['THUMB_FOLDER'])
+    dest_folder.mkdir(parents=True, exist_ok=True)
 
-            # Get list of thumbcache files
-            cache_files = [f for f in os.listdir(app.config['THUMBCACHE_DIR'])
-                         if f.lower().startswith('thumbcache') and f.lower().endswith('.db')]
-            total_files = len(cache_files)
+    # Clear old images
+    for old in dest_folder.glob("*"):
+        try:
+            old.unlink()
+        except:
+            pass
 
-            # Print available files to console
-            print("\n" + "="*50)
-            print(f"Starting new scan at {time.strftime('%Y-%m-%d %H:%M:%S')}")
-            print(f"Found {total_files} thumbcache files:")
-            for i, filename in enumerate(cache_files, 1):
-                print(f"{i}. {filename}")
-            print("="*50 + "\n")
-            
+    thumb_files = get_thumbcache_files()
+    saved_files = []
 
-            # Notify client
-            socketio.emit('scan_progress', {
-                'message': 'Starting scan...',
-                'progress': 0,
-                'total': total_files
-            }, namespace='/')
+    scan_stats = {
+        'total_files': len(thumb_files),
+        'processed_files': 0,
+        'total_images': 0,
+        'current_file': '',
+        'current_file_images': 0
+    }
 
-            processed = 0
-            for filename in cache_files:
-                if stop_event.is_set():
-                    print("Scan stopped by user.")
-                    socketio.emit('scan_stopped', {
-                        'message': 'Scan stopped by user',
-                        'processed_files': processed,
-                        'total_files': total_files,
-                        'code':total_files,
-                        'progress': int((processed/total_files)*100)
-                    }, namespace='/')
-                    break
+    print(f"🔍 Found {scan_stats['total_files']} thumbcache files to scan...\n")
 
-                filepath = os.path.join(app.config['THUMBCACHE_DIR'], filename)
+    for file_index, thumb_file in enumerate(thumb_files, start=1):
+        if stop_event.is_set():
+            print("🛑 Scan stopped by user.")
+            socketio.emit('scan_stopped', {
+                'progress': int((file_index / scan_stats['total_files']) * 100),
+                'stats': scan_stats
+            })
+            return saved_files
 
-                # Print and emit processing status
-                print(f"🔍 Processing {filename}...", end=' ', flush=True)
+        scan_stats['current_file'] = thumb_file.name
+        scan_stats['current_file_images'] = 0
+        scan_stats['processed_files'] = file_index - 1
+
+        print(f"[{file_index}/{scan_stats['total_files']}] Processing: {thumb_file.name}")
+
+        # 🔹 Emit progress start for current file
+        socketio.emit('scan_progress', {
+            'progress': int(((file_index - 1) / scan_stats['total_files']) * 100),
+            'message': f"Processing {thumb_file.name}...",
+            'current': thumb_file.name,
+            'stats': scan_stats.copy()
+        })
+
+        count = 0
+        with open(thumb_file, "rb") as f:
+            data = f.read()
+
+        pos = 0
+        index = 0
+        while True:
+            if stop_event.is_set():
+                break
+
+            start = data.find(b"\xFF\xD8\xFF", pos)
+            if start == -1:
+                break
+            end = data.find(b"\xFF\xD9", start)
+            if end == -1:
+                break
+
+            img_data = data[start:end + 2]
+            img_path = dest_folder / f"{thumb_file.stem}_{index}.jpg"
+            with open(img_path, "wb") as img_file:
+                img_file.write(img_data)
+            saved_files.append(img_path.name)
+
+            count += 1
+            scan_stats['total_images'] += 1
+            scan_stats['current_file_images'] = count
+            index += 1
+            pos = end + 2
+
+            # Emit progress incrementally (every ~20 images)
+            if count % 20 == 0:
                 socketio.emit('scan_progress', {
-                    'message': f'Processing {filename}...',
-                    'current': filename,
-                    'progress': int((processed/total_files)*100),
-                    'total': total_files
-                }, namespace='/')
+                    'progress': int((file_index / scan_stats['total_files']) * 100),
+                    'message': f"Extracting from {thumb_file.name}...",
+                    'current': thumb_file.name,
+                    'stats': scan_stats.copy()
+                })
 
-                # Process the file
-                try:
-                    count = parse_thumbcache_file(filepath, app.config['THUMBNAIL_FOLDER'])
-                    processed += 1
-                    
-                    # Print and emit success
-                    print(f"✅ Success! Extracted {count} thumbnails")
-                    socketio.emit('file_processed', {
-                        'filename': filename,
-                        'count': count,
-                        'progress': int((processed/total_files)*100)
-                    }, namespace='/')
+        print(f"   → Extracted {count} images from {thumb_file.name} (Total: {scan_stats['total_images']})")
 
-                except Exception as e:
-                    # Print and emit failure
-                    print(f"❌ Failed! Error: {str(e)}")
-                    socketio.emit('file_processed', {
-                        'filename': filename,
-                        'count': 0,
-                        'error': str(e),
-                        'progress': int((processed/total_files)*100)
-                    }, namespace='/')
+        scan_stats['processed_files'] = file_index
+        socketio.emit('file_processed', {
+            'filename': thumb_file.name,
+            'count': count,
+            'stats': scan_stats.copy()
+        })
 
-            if not stop_event.is_set():
-                # Final status
-                success_count = processed
-                failure_count = total_files - processed
-                print("\n" + "="*50)
-                print(f"Scan completed! Success: {success_count}, Failed: {failure_count}")
-                print("="*50 + "\n")
-                scan_active = False
-                print(f"Thread cleaned up.{scan_active}")
+        # 🔹 Emit after finishing this file
+        socketio.emit('scan_progress', {
+            'progress': int((file_index / scan_stats['total_files']) * 100),
+            'message': f"Completed {thumb_file.name}",
+            'current': thumb_file.name,
+            'stats': scan_stats.copy()
+        })
 
-                socketio.emit('scan_complete', {
-                    'message': 'Scan completed!',
-                    'total_files': total_files,
-                    'success_count': success_count,
-                    'failure_count': failure_count,
-                    'progress': 100
-                }, namespace='/')
-                
-                
-    finally:
-        with thread_lock:
-            scan_active = False
-            thread = None
-            print(f"Thread cleaned up.{scan_active}")
-            stop_event.clear()
+        time.sleep(0.3)
 
+    print(f"\n✅ Scan complete — {scan_stats['total_images']} images extracted.\n")
+
+    # 🔹 Final progress update
+    socketio.emit('scan_progress', {
+        'progress': 100,
+        'message': 'Scan completed!',
+        'current': '',
+        'stats': scan_stats.copy()
+    })
+
+    socketio.emit('scan_complete', {
+        'progress': 100,
+        'files': saved_files,
+        'stats': scan_stats.copy()
+    })
+    socketio.emit('refresh_thumbs')
+    return saved_files
+
+# ---------------------------
+# 4️⃣ Background Thread
+# ---------------------------
+def scan_thread_fn():
+    stop_event.clear()
+    extract_thumbnails()
+
+# ---------------------------
+# 5️⃣ Routes
+# ---------------------------
 @app.route('/')
 def index():
     return render_template('index.html')
 
-@app.route('/thumbs/<filename>')
-def serve_thumb(filename):
-    return send_from_directory(app.config['THUMBNAIL_FOLDER'], filename)
+@app.route('/thumbs/<path:filename>')
+def send_thumb(filename):
+    return send_from_directory(app.config['THUMB_FOLDER'], filename)
 
 @app.route('/thumbs-list')
-def list_thumbs():
-    folder = app.config['THUMBNAIL_FOLDER']
-    if not os.path.exists(folder):
-        return jsonify([])
-    thumbs = sorted([f for f in os.listdir(folder) if f.lower().endswith(('.jpg', '.jpeg', '.png'))])
-    return jsonify(thumbs)
+def thumbs_list():
+    thumbs = [f for f in os.listdir(app.config['THUMB_FOLDER']) if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
+    return jsonify(sorted(thumbs))
+
+@app.route('/scan-stats')
+def get_scan_stats():
+    return jsonify(scan_stats)
+
+# ---------------------------
+# 6️⃣ Socket.IO Events
+# ---------------------------
+@socketio.on('start_scan')
+def start_scan():
+    global scan_thread
+    thumb_folder = Path(app.config['THUMB_FOLDER'])
+    if thumb_folder.exists():
+        for old_file in thumb_folder.glob("*"):
+            try:
+                old_file.unlink()
+            except Exception as e:
+                print(f"⚠️ Could not delete {old_file}: {e}")
+        print("🧹 Cleared old thumbnails before starting new scan.")
+        emit('scan_progress', {
+    'progress': 0,
+    'message': '🧹 Cleared old thumbnails, starting new scan...',
+    'current': '',
+    'stats': scan_stats.copy()
+})
 
 
-@socketio.on('start_scan', namespace='/')
-def handle_start_scan():
-    global thread
-    with thread_lock:
-        if thread is None and not scan_active:
-            thread = socketio.start_background_task(background_scan)
-        else:
-            emit('scan_error', {
-                'message': 'Scan already in progress. Please wait or stop current scan.'
-            }, namespace='/')
+    if scan_thread and scan_thread.is_alive():
+        emit('scan_progress', {
+    'progress': 0,
+    'message': '⚠️ Scan already running...',
+    'current': '',
+    'stats': scan_stats.copy()
+})
+        return
 
-@socketio.on('stop_scan', namespace='/')
-def handle_stop_scan():
-    global thread, scan_active
-    with thread_lock:
-        if thread is not None and scan_active:
-            stop_event.set()
-            emit('scan_status', {
-                'message': 'Stopping scan...',
-                'status': 'stopping'
-            }, namespace='/')
+    scan_thread = threading.Thread(target=scan_thread_fn)
+    scan_thread.start()
+    print("✅ Started new scan thread.")
 
+@socketio.on('stop_scan')
+def stop_scan():
+    stop_event.set()
+    emit('scan_stopped', {'progress': 0, 'stats': scan_stats})
+
+@socketio.on('get_stats')
+def send_stats():
+    emit('current_stats', {'stats': scan_stats})
+
+# ---------------------------
+# 7️⃣ Run
+# ---------------------------
 if __name__ == '__main__':
-    if not os.path.exists(app.config['THUMBNAIL_FOLDER']):
-        os.makedirs(app.config['THUMBNAIL_FOLDER'])
-    socketio.run(app, debug=True)
+    print("✅ FileRescue server running at http://localhost:5000")
+    socketio.run(app, debug=True, port=5000, use_reloader=False)
