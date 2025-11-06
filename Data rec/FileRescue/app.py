@@ -212,20 +212,19 @@ def start_scan():
                 print(f"⚠️ Could not delete {old_file}: {e}")
         print("🧹 Cleared old thumbnails before starting new scan.")
         emit('scan_progress', {
-    'progress': 0,
-    'message': '🧹 Cleared old thumbnails, starting new scan...',
-    'current': '',
-    'stats': scan_stats.copy()
-})
-
+            'progress': 0,
+            'message': '🧹 Cleared old thumbnails, starting new scan...',
+            'current': '',
+            'stats': scan_stats.copy()
+        })
 
     if scan_thread and scan_thread.is_alive():
         emit('scan_progress', {
-    'progress': 0,
-    'message': '⚠️ Scan already running...',
-    'current': '',
-    'stats': scan_stats.copy()
-})
+            'progress': 0,
+            'message': '⚠️ Scan already running...',
+            'current': '',
+            'stats': scan_stats.copy()
+        })
         return
 
     scan_thread = threading.Thread(target=scan_thread_fn)

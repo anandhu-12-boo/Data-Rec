@@ -215,8 +215,24 @@
                             <div class="text-2xl font-bold text-green-600" id="totalImages">0</div>
                             <div class="text-sm text-green-800">Images Found</div>
                         </div>
-                     
-                   
+                        <div class="bg-purple-50 p-3 rounded-lg text-center">
+                            <div class="text-2xl font-bold text-purple-600" id="currentFileImages">0</div>
+                            <div class="text-sm text-purple-800">Current File Images</div>
+                        </div>
+                    </div>
+
+                    <!-- Progress Bar Section -->
+                    <div class="mb-6">
+                        <div class="flex justify-between text-sm text-gray-600 mb-1">
+                            <span id="progressText">Ready to scan</span>
+                            <span id="progressPercent">0%</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div id="progressBar" class="progress-bar h-2 rounded-full bg-blue-600" style="width: 0%"></div>
+                        </div>
+                        <div class="text-center mt-1">
+                            <span id="progressPercentText" class="text-sm text-gray-500">0%</span>
+                        </div>
                     </div>
 
                     <!-- Current File Info -->
@@ -636,21 +652,20 @@
             });
 
             // Helper functions
-          function updateProgressUI(data) {
-    const progress = typeof data.progress === 'number' ? data.progress : 0;
-    const message = data.message || 'Scanning...';
+            function updateProgressUI(data) {
+                const progress = typeof data.progress === 'number' ? data.progress : 0;
+                const message = data.message || 'Scanning...';
 
-    document.getElementById('progressText').textContent = message;
-    document.getElementById('progressPercent').textContent = `${progress}%`;
-    document.getElementById('progressPercentText').textContent = `${progress}%`;
-    document.getElementById('progressBar').style.width = `${progress}%`;
+                document.getElementById('progressText').textContent = message;
+                document.getElementById('progressPercent').textContent = `${progress}%`;
+                document.getElementById('progressPercentText').textContent = `${progress}%`;
+                document.getElementById('progressBar').style.width = `${progress}%`;
 
-    if (data.current) {
-        document.getElementById('currentFileName').textContent = data.current;
-        document.getElementById('currentFile').classList.remove('hidden');
-    }
-}
-
+                if (data.current) {
+                    document.getElementById('currentFileName').textContent = data.current;
+                    document.getElementById('currentFile').classList.remove('hidden');
+                }
+            }
 
             function updateStatsUI(stats) {
                 document.getElementById('processedFiles').textContent = stats.processed_files;
@@ -667,28 +682,28 @@
                 }
             }
 
-           function updateScanComplete(data, message) {
-    updateProgressUI(data);
-    if (data.stats) {
-        updateStatsUI(data.stats);
-    }
+            function updateScanComplete(data, message) {
+                updateProgressUI(data);
+                if (data.stats) {
+                    updateStatsUI(data.stats);
+                }
 
-    // Hide current file spinner
-    document.getElementById('currentFile').classList.add('hidden');
+                // Hide current file spinner
+                document.getElementById('currentFile').classList.add('hidden');
 
-    // ✅ Reset UI Buttons
-    startBtn.disabled = false;
-    startBtn.classList.remove('bg-gray-400', 'cursor-not-allowed');
-    startBtn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+                // Reset UI Buttons
+                startBtn.disabled = false;
+                startBtn.classList.remove('bg-gray-400', 'cursor-not-allowed');
+                startBtn.classList.add('bg-blue-600', 'hover:bg-blue-700');
 
-    stopBtn.classList.add('hidden'); // hide stop button
-    showImagesBtn.classList.remove('hidden'); // show "Show Recovered Images" button
+                stopBtn.classList.add('hidden');
+                showImagesBtn.classList.remove('hidden');
 
-    // ✅ Update progress text
-    document.getElementById('progressText').textContent = message;
-    document.getElementById('progressPercentText').textContent = '100%';
-    document.getElementById('progressBar').style.width = '100%';
-}
+                // Update progress text
+                document.getElementById('progressText').textContent = message;
+                document.getElementById('progressPercentText').textContent = '100%';
+                document.getElementById('progressBar').style.width = '100%';
+            }
 
             // Request current stats when page loads
             socket.emit('get_stats');
