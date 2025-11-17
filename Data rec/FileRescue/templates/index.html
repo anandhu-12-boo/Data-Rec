@@ -55,7 +55,6 @@
                 <p class="text-gray-600">Recover deleted files from the system</p>
             </div>
 
-            <!-- Login Form -->
             <div id="loginForm" class="space-y-4">
                 <h2 class="text-xl font-semibold text-center mb-4">Sign In</h2>
                 
@@ -81,7 +80,6 @@
                 </p>
             </div>
 
-            <!-- Signup Form -->
             <div id="signupForm" class="space-y-4 hidden">
                 <h2 class="text-xl font-semibold text-center mb-4">Create Account</h2>
                 
@@ -121,7 +119,6 @@
         </div>
     </div>
 
-    <!-- Main Application -->
     <div id="mainApp" class="flex h-screen overflow-hidden bg-white hidden">
         <!-- Sidebar -->
         <div class="sidebar bg-violet-900 text-white w-64 m-2 rounded-lg flex-shrink-0 flex flex-col">
@@ -152,9 +149,7 @@
             </div>
         </div>
 
-        <!-- Main Content -->
         <div class="main-content flex-1 flex flex-col overflow-hidden">
-            <!-- Top Navigation -->
             <header class="bg-white shadow-sm">
                 <div class="px-4 py-3 flex justify-between items-center">
                     <h2 class="text-lg font-semibold text-gray-800">Dashboard</h2>
@@ -169,7 +164,6 @@
                             Show Recovered Images
                         </button>
                         
-                        <!-- User Dropdown -->
                         <div class="relative">
                             <button id="userDropdown" class="flex items-center space-x-2 text-gray-700 hover:text-gray-900 focus:outline-none">
                                 <div class="w-8 h-8 bg-violet-600 rounded-full flex items-center justify-center">
@@ -198,13 +192,10 @@
                 </div>
             </header>
 
-            <!-- Main Content Area -->
             <main class="flex-1 overflow-y-auto p-6 bg-white">
-                <!-- Scan Progress Section -->
                 <div class="bg-white rounded-lg p-6 mb-6">
                     <h3 class="text-lg font-semibold text-gray-800 mb-4">Scan Progress</h3>
                     
-                    <!-- Real-time Statistics -->
                     <div id="scanStats" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                         <div class="bg-blue-50 p-3 rounded-lg text-center">
                             <div class="text-2xl font-bold text-blue-600" id="processedFiles">0</div>
@@ -221,7 +212,6 @@
                         </div>
                     </div>
 
-                    <!-- Progress Bar Section -->
                     <div class="mb-6">
                         <div class="flex justify-between text-sm text-gray-600 mb-1">
                             <span id="progressText">Ready to scan</span>
@@ -235,7 +225,6 @@
                         </div>
                     </div>
 
-                    <!-- Current File Info -->
                     <div id="currentFile" class="hidden p-3 bg-blue-50 rounded-lg">
                         <div class="flex items-center space-x-3">
                             <div class="animate-spin h-5 w-5 text-blue-600">
@@ -252,8 +241,6 @@
                         </div>
                     </div>
                 </div>
-
-                <!-- Thumbnail Gallery Section -->
                 <div class="bg-white rounded-lg border p-6">
                     <div class="flex justify-between items-center mb-4">
                         <h3 class="text-lg font-semibold text-gray-800">Extracted Thumbnails</h3>
@@ -265,12 +252,9 @@
                         </div>
                     </div>
 
-                    <!-- Images Container - Initially Hidden -->
                     <div id="thumbGrid" class="thumbnail-grid grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                        <!-- Thumbnails will be loaded here -->
+                
                     </div>
-
-                    <!-- No Images Message -->
                     <div id="noThumbsMessage" class="text-center py-12">
                         <div class="text-gray-400 mb-4">
                             <svg class="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -284,7 +268,6 @@
                         </button>
                     </div>
 
-                    <!-- Loading State -->
                     <div id="loadingThumbs" class="hidden text-center py-8">
                         <div class="animate-spin h-8 w-8 text-blue-600 mx-auto mb-4">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -300,7 +283,6 @@
     </div>
 
     <script>
-        // Authentication system
         class AuthSystem {
             constructor() {
                 this.users = JSON.parse(localStorage.getItem('filerescue_users') || '[]');
@@ -310,22 +292,14 @@
             }
 
             initEventListeners() {
-                // Form switching
                 document.getElementById('showSignup').addEventListener('click', () => this.showSignupForm());
                 document.getElementById('showLogin').addEventListener('click', () => this.showLoginForm());
-                
-                // Form submissions
                 document.getElementById('loginBtn').addEventListener('click', (e) => this.handleLogin(e));
                 document.getElementById('signupBtn').addEventListener('click', (e) => this.handleSignup(e));
-                
-                // Logout
                 document.getElementById('logoutBtn').addEventListener('click', () => this.logout());
                 
-                // User dropdown
                 document.getElementById('userDropdown').addEventListener('click', () => this.toggleDropdown());
-                
-                // Close dropdown when clicking outside
-                document.addEventListener('click', (e) => {
+              document.addEventListener('click', (e) => {
                     if (!e.target.closest('#userDropdown') && !e.target.closest('#dropdownMenu')) {
                         this.closeDropdown();
                     }
@@ -338,7 +312,6 @@
             }
 
             validatePassword(password) {
-                // At least 6 characters with at least one special character
                 const hasMinLength = password.length >= 6;
                 const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
                 return hasMinLength && hasSpecialChar;
@@ -371,9 +344,7 @@
             }
 
             clearForms() {
-                // Clear all form inputs
                 document.querySelectorAll('input').forEach(input => input.value = '');
-                // Hide all error/success messages
                 document.querySelectorAll('[id$="Error"], [id$="Success"]').forEach(el => el.classList.add('hidden'));
             }
 
@@ -384,8 +355,6 @@
                 const email = document.getElementById('signupEmail').value.trim();
                 const password = document.getElementById('signupPassword').value;
                 const confirmPassword = document.getElementById('confirmPassword').value;
-
-                // Validation
                 if (!name) {
                     this.showError('signupError', 'Please enter your full name');
                     return;
@@ -405,27 +374,21 @@
                     this.showError('signupError', 'Passwords do not match');
                     return;
                 }
-
-                // Check if user already exists
                 if (this.users.find(user => user.email === email)) {
                     this.showError('signupError', 'An account with this email already exists');
                     return;
                 }
-
-                // Create new user
                 const newUser = {
                     id: Date.now(),
                     name,
                     email,
-                    password // In a real app, this would be hashed
+                    password 
                 };
 
                 this.users.push(newUser);
                 localStorage.setItem('filerescue_users', JSON.stringify(this.users));
                 
                 this.showSuccess('signupSuccess', 'Account created successfully! You can now sign in.');
-                
-                // Switch to login form after 2 seconds
                 setTimeout(() => {
                     this.showLoginForm();
                     document.getElementById('loginEmail').value = email;
@@ -443,15 +406,12 @@
                     return;
                 }
 
-                // Find user
                 const user = this.users.find(u => u.email === email && u.password === password);
                 
                 if (!user) {
                     this.showError('loginError', 'Invalid email or password');
                     return;
                 }
-
-                // Set current user and show main app
                 this.currentUser = user;
                 localStorage.setItem('filerescue_current_user', JSON.stringify(user));
                 this.showMainApp();
@@ -475,8 +435,6 @@
             showMainApp() {
                 document.getElementById('authModal').classList.add('hidden');
                 document.getElementById('mainApp').classList.remove('hidden');
-                
-                // Update user info in navbar
                 const initials = this.currentUser.name.split(' ').map(n => n[0]).join('').toUpperCase();
                 document.getElementById('userInitials').textContent = initials;
                 document.getElementById('userName').textContent = this.currentUser.name;
@@ -500,10 +458,8 @@
             }
         }
 
-        // Initialize authentication system
         const auth = new AuthSystem();
 
-        // FileRescue functionality
         document.addEventListener('DOMContentLoaded', () => {
             const socket = io();
             const startBtn = document.getElementById('startScan');
@@ -516,7 +472,6 @@
             const noThumbsMessage = document.getElementById('noThumbsMessage');
             const loadingThumbs = document.getElementById('loadingThumbs');
 
-            // Show recovered images function
             function showRecoveredImages() {
                 loadingThumbs.classList.remove('hidden');
                 noThumbsMessage.classList.add('hidden');
@@ -559,17 +514,13 @@
                     });
             }
 
-            // Event Listeners
             startBtn.addEventListener('click', () => {
-                // Reset UI
                 sidebarResults.innerHTML = '<div class="text-gray-400 italic">Scanning in progress...</div>';
                 thumbGrid.classList.remove('show');
                 noThumbsMessage.classList.remove('hidden');
                 document.getElementById('progressBar').style.width = '0%';
                 document.getElementById('progressPercent').textContent = '0%';
                 document.getElementById('progressPercentText').textContent = '0%';
-
-                // Start scan
                 socket.emit('start_scan');
                 startBtn.disabled = true;
                 startBtn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
@@ -590,8 +541,6 @@
             showImagesBtn.addEventListener('click', showRecoveredImages);
             showImagesInitialBtn.addEventListener('click', showRecoveredImages);
             refreshThumbsBtn.addEventListener('click', showRecoveredImages);
-
-            // Socket.IO Events
             socket.on('scan_progress', (data) => {
                 updateProgressUI(data);
                 if (data.stats) {
@@ -603,8 +552,7 @@
                 if (data.stats) {
                     updateStatsUI(data.stats);
                 }
-                
-                // Update sidebar results
+
                 const resultItem = document.createElement('div');
                 resultItem.className = 'bg-gray-700 rounded p-2 fade-in';
                 resultItem.innerHTML = `
@@ -613,8 +561,6 @@
                         ${data.count > 0 ? `${data.count} thumbnails` : 'Image not found'}
                     </div>
                 `;
-                
-                // Clear "scanning in progress" message if it exists
                 if (sidebarResults.querySelector('.text-gray-400')) {
                     sidebarResults.innerHTML = '';
                 }
@@ -645,13 +591,11 @@
             });
 
             socket.on('refresh_thumbs', () => {
-                // Auto-refresh thumbnails when scan completes
                 if (thumbGrid.classList.contains('show')) {
                     showRecoveredImages();
                 }
             });
 
-            // Helper functions
             function updateProgressUI(data) {
                 const progress = typeof data.progress === 'number' ? data.progress : 0;
                 const message = data.message || 'Scanning...';
@@ -672,8 +616,6 @@
                 document.getElementById('totalFiles').textContent = `of ${stats.total_files} total`;
                 document.getElementById('totalImages').textContent = stats.total_images;
                 document.getElementById('currentFileImages').textContent = stats.current_file_images;
-                
-                // Update current file stats
                 const currentFileStats = document.getElementById('currentFileStats');
                 if (stats.current_file_images > 0) {
                     currentFileStats.textContent = `${stats.current_file_images} images found in current file`;
@@ -687,25 +629,18 @@
                 if (data.stats) {
                     updateStatsUI(data.stats);
                 }
-
-                // Hide current file spinner
                 document.getElementById('currentFile').classList.add('hidden');
-
-                // Reset UI Buttons
                 startBtn.disabled = false;
                 startBtn.classList.remove('bg-gray-400', 'cursor-not-allowed');
                 startBtn.classList.add('bg-blue-600', 'hover:bg-blue-700');
 
                 stopBtn.classList.add('hidden');
                 showImagesBtn.classList.remove('hidden');
-
-                // Update progress text
                 document.getElementById('progressText').textContent = message;
                 document.getElementById('progressPercentText').textContent = '100%';
                 document.getElementById('progressBar').style.width = '100%';
             }
 
-            // Request current stats when page loads
             socket.emit('get_stats');
         });
     </script>

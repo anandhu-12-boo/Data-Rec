@@ -15,8 +15,6 @@ os.makedirs(app.config['THUMB_FOLDER'], exist_ok=True)
 
 scan_thread = None
 stop_event = threading.Event()
-
-# Global scan statistics
 scan_stats = {
     'total_files': 0,
     'processed_files': 0,
@@ -24,19 +22,12 @@ scan_stats = {
     'current_file': '',
     'current_file_images': 0
 }
-
-# ---------------------------
-# 1️⃣ Get Windows Username
-# ---------------------------
 def get_windows_username():
     try:
         return os.getlogin()
     except Exception:
         return os.environ.get("USERNAME", "unknown")
 
-# ---------------------------
-# 2️⃣ Locate Thumbcache Files
-# ---------------------------
 def get_thumbcache_files():
     username = get_windows_username()
     explorer_path = Path(f"C:/Users/{username}/AppData/Local/Microsoft/Windows/Explorer")
@@ -44,15 +35,10 @@ def get_thumbcache_files():
         raise FileNotFoundError("Explorer thumbnail cache folder not found.")
     return list(explorer_path.glob("thumbcache_*.db"))
 
-# ---------------------------
-# 3️⃣ Extract Thumbnails (with Progress)
-# ---------------------------
 def extract_thumbnails():
     global scan_stats
     dest_folder = Path(app.config['THUMB_FOLDER'])
     dest_folder.mkdir(parents=True, exist_ok=True)
-
-    # Clear old images
     for old in dest_folder.glob("*"):
         try:
             old.unlink()
@@ -87,7 +73,6 @@ def extract_thumbnails():
 
         print(f"[{file_index}/{scan_stats['total_files']}] Processing: {thumb_file.name}")
 
-        # 🔹 Emit progress start for current file
         socketio.emit('scan_progress', {
             'progress': int(((file_index - 1) / scan_stats['total_files']) * 100),
             'message': f"Processing {thumb_file.name}...",
@@ -123,8 +108,6 @@ def extract_thumbnails():
             scan_stats['current_file_images'] = count
             index += 1
             pos = end + 2
-
-            # Emit progress incrementally (every ~20 images)
             if count % 20 == 0:
                 socketio.emit('scan_progress', {
                     'progress': int((file_index / scan_stats['total_files']) * 100),
@@ -142,7 +125,6 @@ def extract_thumbnails():
             'stats': scan_stats.copy()
         })
 
-        # 🔹 Emit after finishing this file
         socketio.emit('scan_progress', {
             'progress': int((file_index / scan_stats['total_files']) * 100),
             'message': f"Completed {thumb_file.name}",
@@ -153,8 +135,6 @@ def extract_thumbnails():
         time.sleep(0.3)
 
     print(f"\n✅ Scan complete — {scan_stats['total_images']} images extracted.\n")
-
-    # 🔹 Final progress update
     socketio.emit('scan_progress', {
         'progress': 100,
         'message': 'Scan completed!',
@@ -170,16 +150,10 @@ def extract_thumbnails():
     socketio.emit('refresh_thumbs')
     return saved_files
 
-# ---------------------------
-# 4️⃣ Background Thread
-# ---------------------------
 def scan_thread_fn():
     stop_event.clear()
     extract_thumbnails()
 
-# ---------------------------
-# 5️⃣ Routes
-# ---------------------------
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -197,9 +171,6 @@ def thumbs_list():
 def get_scan_stats():
     return jsonify(scan_stats)
 
-# ---------------------------
-# 6️⃣ Socket.IO Events
-# ---------------------------
 @socketio.on('start_scan')
 def start_scan():
     global scan_thread
@@ -240,9 +211,6 @@ def stop_scan():
 def send_stats():
     emit('current_stats', {'stats': scan_stats})
 
-# ---------------------------
-# 7️⃣ Run
-# ---------------------------
 if __name__ == '__main__':
     print("✅ FileRescue server running at http://localhost:5000")
     socketio.run(app, debug=True, port=5000, use_reloader=False)
